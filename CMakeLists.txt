@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.16)
+project(convarm)
+include_directories(include)
+file(GLOB SRC source/*.cpp)
+add_executable(convarm ${SRC})
