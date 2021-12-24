@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <fmt/core.h>
 
 #include "func.hpp"
 #include "instruction.hpp"
@@ -9,22 +10,22 @@ void Instruction::shiftCode(bool s_bit, bool imm_bit) {
     std::string cmd;
 
     if(imm_bit) {
-        std::cout << "mov" << (s_bit ? "s" : "") << cond << " " << rd << ", " << hexToString(code & 0xff, true) << std::endl;
+        std::cout << fmt::format("mov{}{} {}, {}", s_bit ? "s" : "", cond, rd, hexToString(code & 0xff, true)) << std::endl;
         return;
     }
     
     if(((code >> 4) & 0xff) == 0) {
-        std::cout << "mov" << (s_bit ? "s" : "") << cond << " " << rd << ", " << rm << std::endl;
+        std::cout << fmt::format("mov{}{} {}, {}", s_bit ? "s" : "", cond, rd, rm) << std::endl;
     } else {
-        switch((code >> 5) & 2) {
+        switch((code >> 5) & 3) {
             case 0: cmd = "lsl"; break;
             case 1: cmd = "lsr"; break;
             case 2: cmd = ((code >> 7) & 0xff ? "ror" : "rrx"); break;
         }
         
         (code >> 4) & 1 ?
-            std::cout << cmd << (s_bit ? "s" : "") << cond << " " << rd << ", " << rm << ", " << rs << std::endl:
-            std::cout << cmd << (s_bit ? "s" : "") << cond << " " << rd << ", " << rm << ", " << hexToString((code >> 7) & 0x1f, true) << std::endl;
+            std::cout << fmt::format("{}{}{} {}, {}, {}", cmd, s_bit ? "s" : "", cond, rd, rm, rs) << std::endl :
+            std::cout << fmt::format("{}{}{} {}, {}, {}", cmd, s_bit ? "s" : "", cond, rd, rm, hexToString((code >> 7) & 0x1f, true)) << std::endl;
     }
 }
 
@@ -34,7 +35,7 @@ void Instruction::dataProcessing() {
     bool psr = (code >> 22) & 1;
     bool s_bit = (code >> 20) & 1;
     bool imm_bit = (code >> 25) & 1;
-    bool bx_mode = ((code >> 20) & 0x1f) == 0x12;
+    bool bx_mode = ((code >> 20) & 0x1f) == 0x12 && (code >> 4) & 1;
     bool cmp_mode = ((code >> 23) & 3) == 2;
     bool mul_mode = !imm_bit && ((code >> 4) & 0xf) == 9;
 
@@ -92,12 +93,13 @@ void Instruction::dataProcessing() {
     // An immediate value exists
     if(imm_bit) {
         if(cmd == "msr") {
-            std::cout << cmd << " " << (psr ? "spsr" : "cpsr") << "_" << flag << ", " << hexToString(code & 0xff, true) << std::endl;
+            std::cout << fmt::format("{} {}_{}, {}", cmd, psr ? "spsr" : "cpsr", flag,
+                hexToString(code & 0xff, true)) << std::endl;
         } else if(cmp_mode) {
-            std::cout << cmd << cond << " " << rn << ", " << hexToString(code & 0xff, true) << std::endl;
+            std::cout << fmt::format("{}{} {}, {}", cmd, cond, rn, hexToString(code & 0xff, true)) << std::endl;
         } else {
-            std::cout << cmd << (s_bit ? "s" : "") << cond << " " << rd << ", " << (cmd == "mvn" ? "" : rn + ", ") \
-            << hexToString(code & 0xff, true) << std::endl;
+            std::cout << fmt::format("{}{}{} {}, {}{}", cmd, s_bit ? "s" : "", cond, rd,
+                cmd == "mvn" ? "" : rn + ", ", hexToString(code & 0xff, true)) << std::endl;
         }
         return;
     }
@@ -106,21 +108,20 @@ void Instruction::dataProcessing() {
         std::cout << "bx" << cond << " " << rm << std::endl;
     } else if(cmp_mode) {
         if(cmd == "mrs")
-            std::cout << cmd << " " << rd << ", " << (psr ? "spsr" : "cpsr") << std::endl;
+            std::cout << fmt::format("{} {}, {}", cmd, rd, psr ? "spsr" : "cpsr") << std::endl;
         else if(cmd == "msr")
-            std::cout << cmd << " " << (psr ? "spsr" : "cpsr") << "_" << flag << ", " << rm << std::endl;
+            std::cout << fmt::format("{} {}_{}, {}", cmd, psr ? "spsr" : "cpsr", flag, rm) << std::endl;
         else
-            std::cout << cmd << cond << " " << rn << ", " << rm << std::endl;
+            std::cout << fmt::format("{}{} {}, {}", cmd, cond, rn, rm) << std::endl;
     } else if(mul_mode) {
         if(cmd == "mla")
             rd.swap(rn);
 
-        std::cout << cmd << (s_bit ? "s" : "") << cond << " " << rd << ", " \
-        << ((code >> 23) & 1 ? (rn + ", ") : "") << rm << ", " << rs \
-        << (cmd == "mla" ? (", " + rn) : "") << std::endl;
+        std::cout << fmt::format("{}{}{} {}, {}{}, {}{}", cmd, s_bit ? "s" : "", cond, rd,
+            (code >> 23) & 1 ? (rn + ", ") : "", rm, rs, cmd == "mla" ? (", " + rn) : "") << std::endl;
     } else {
-        std::cout << cmd << (s_bit ? "s" : "") << cond << " " << rd << ", " \
-        << (cmd == "mvn" ? "" : rn + ", ") << rm << std::endl;
+        std::cout << fmt::format("{}{}{} {}, {}{}", cmd, s_bit ? "s" : "", cond, rd,
+            cmd == "mvn" ? "" : rn + ", ", rm) << std::endl;
     }
 }
 
@@ -141,18 +142,21 @@ void Instruction::singleMemory() {
 
     if(imm_bit) {
         p_bit?
-            std::cout << cmd << byte << cond << " " << rd << ", [" << rn << imm << "]" << write_back << std::endl:
-            std::cout << cmd << byte << cond << " " << rd << ", [" << rn << "], " << hexToString(imm12, u_bit) << std::endl;
+            std::cout << fmt::format("{}{}{} {}, [{}{}]{}", cmd, byte, cond, rd, rn, imm, write_back) << std::endl :
+            std::cout << fmt::format("{}{}{} {}, [{}], {}", cmd, byte, cond, rd, rn, hexToString(imm12, u_bit)) << std::endl;
     } else {
         p_bit?
-            std::cout << cmd << byte << cond << " " << rd << ", [" << rn << ", " << rm << "]" << write_back << std::endl:
-            std::cout << cmd << byte << cond << " " << rd << ", [" << rn << "], " << rm << std::endl;
+            std::cout << fmt::format("{}{}{} {}, [{}, {}]{}", cmd, byte, cond, rd, rn, rm, write_back) << std::endl :
+            std::cout << fmt::format("{}{}{} {}, [{}], {}", cmd, byte, cond, rd, rn, rm) << std::endl;
     }
 }
 
 void Instruction::multiMemory() {
     bool cmd = (code >> 20) & 1;
+    bool w_bit = (code >> 21) & 1;
+
     std::string reg_list;
+    std::string write_back = w_bit ? "!" : "";
 
     std::vector<std::string> adr_mode = {
         rn == "sp" ? (cmd ? "fa" : "ed") : "da",
@@ -169,22 +173,26 @@ void Instruction::multiMemory() {
             reg_list += "}";
     }
 
-    std::cout << (cmd ? "ldm" : "stm") << adr_mode[(code >> 23) & 3] << cond << " " << rn << "!, " << reg_list << std::endl;
+    std::cout << fmt::format("{}{}{} {}{}, {}", cmd ? "ldm" : "stm", adr_mode[(code >> 23) & 3],
+        cond, rn, write_back, reg_list) << std::endl;
 }
 
 void Instruction::branch() {
     bool link = (code >> 24) & 1;
-    int imm = (((code & 0xffffff) | (0xff << 24)) << 2) + 8;
+    bool sign = (code >> 23) & 1; 
+    int imm = ((code & 0xffffff) << 2 | (sign ? 0xff << 24 : 0)) + 8;
 
-    std::cout << (link ? "bl" : "b") << cond << " " << hexToString(imm, true) << std::endl;
+    std::cout << fmt::format("{}{} {}", link ? "bl" : "b", cond, hexToString(imm, true)) << std::endl;
 }
 
 void Instruction::swInterrupt() {
     int svc_num = code & 0xffffff;
-    std::cout << "svc" << cond << " " << hexToString(svc_num, true) << std::endl;
+    std::cout << fmt::format("svc{} {}", cond, hexToString(svc_num, true)) << std::endl;
 }
 
 void Instruction::blxCode() {
-    int imm = (((code & 0xffffff) | (0xff << 24)) << 2) + 8;
-    std::cout << "blx " << hexToString(imm, true) << std::endl;
+    bool sign = (code >> 23) & 1; 
+    int imm = ((code & 0xffffff) << 2 | (sign ? 0xff << 24 : 0)) + 8;
+
+    std::cout << fmt::format("blx {}", hexToString(imm, true)) << std::endl;
 }

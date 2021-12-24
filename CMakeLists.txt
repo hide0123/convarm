@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
-project(convarm)
+
+set(PROJECT convarm)
+project(${PROJECT})
+
 include_directories(include)
-file(GLOB SRC source/*.cpp)
-add_executable(convarm ${SRC})
+file(GLOB SOURCES source/*.cpp)
+
+add_executable(${PROJECT} ${SOURCES})
+target_link_libraries(${PROJECT} fmt)
